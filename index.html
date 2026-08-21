@@ -14,20 +14,16 @@
         }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); padding: 20px; color: #333; margin: 0; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-        h2, h3 { border-bottom: 2px solid var(--bg); padding-bottom: 8px; margin-top: 0; }
         
-        /* 班級分頁頁籤 */
         .class-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #E5E7EB; padding: 6px; border-radius: 8px; }
         .tab-btn { flex: 1; padding: 12px 0; border: none; background: transparent; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; color: #4B5563; }
         .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         
-        /* 模式切換按鈕 */
         .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; background: #EEF2FF; padding: 12px; border-radius: 8px; }
         .mode-btn { flex: 1; padding: 10px; border: 2px solid transparent; background: white; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; font-size: 15px; color: #555; }
         .mode-btn.selected-missing { background: var(--danger); color: white; border-color: var(--danger); }
         .mode-btn.selected-return { background: var(--success); color: white; border-color: var(--success); }
 
-        /* 學生選單列表 */
         .student-list { max-height: 380px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 20px; }
         .student-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #F3F4F6; }
         .student-item:hover { background: #FAF5FF; }
@@ -38,8 +34,16 @@
         .btn-submit { background: var(--primary); color: white; border: none; padding: 14px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
         .btn-submit:hover { opacity: 0.9; }
         
-        /* 統計表格 */
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        /* 重設日期顯示卡片 */
+        .reset-badge-card { background: #F3F4F6; border-left: 4px solid var(--primary); padding: 10px 15px; border-radius: 6px; margin-top: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .reset-date-text { font-size: 14px; color: #374151; }
+        .reset-date-highlight { font-weight: bold; color: var(--primary); font-size: 15px; }
+
+        .stats-header { display: flex; justify-content: space-between; align-items: center; margin-top: 35px; border-bottom: 2px solid var(--bg); padding-bottom: 8px; }
+        .btn-reset { background: #6B7280; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
+        .btn-reset:hover { background: #4B5563; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { border: 1px solid #E5E7EB; padding: 8px 12px; text-align: left; }
         th { background: #F9FAFB; }
         .badge-danger { background: #FEE2E2; color: #991B1B; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
@@ -50,9 +54,9 @@
 <body>
 
 <div class="container">
-    <h2>🏫 班級功課欠交與補交管理系統</h2>
+    <h2 style="border-bottom: 2px solid var(--bg); padding-bottom: 8px; margin-top:0;">🏫 班級功課欠交與補交管理系統</h2>
 
-    <!-- 1. 班級分頁頁籤 -->
+    <!-- 1. 班級頁籤 -->
     <div class="class-tabs">
         <button class="tab-btn active" onclick="switchClass('1A')">1A</button>
         <button class="tab-btn" onclick="switchClass('1B')">1B</button>
@@ -60,7 +64,7 @@
         <button class="tab-btn" onclick="switchClass('1D')">1D</button>
     </div>
 
-    <!-- 2. 日期與模式設定 -->
+    <!-- 2. 日期與模式 -->
     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
         <label><strong>日期：</strong></label>
         <input type="date" id="date-input" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;">
@@ -71,21 +75,34 @@
         <div class="mode-btn" id="btn-mode-sub" onclick="setMode('SUB')">🟢 補交功課 (扣減撤銷)</div>
     </div>
 
-    <!-- 3. 學生點名與數量列表 -->
+    <!-- 3. 學生點名與數量 -->
     <div class="student-list" id="student-list">
         <div style="padding: 20px; text-align: center; color: #666;">載入資料中，請稍候...</div>
     </div>
 
     <button class="btn-submit" onclick="submitData()">儲存並同步至 Google Sheets</button>
 
-    <!-- 4. 統計儀表板 -->
-    <h3 style="margin-top: 35px;">📊 班級 <span id="current-class-label">1A</span> 累積統計 (滿5次去自強班)</h3>
+    <!-- 4. 統計視窗與上次重設日期提示 -->
+    <div class="stats-header">
+        <h3 style="margin: 0;">📊 班級 <span id="current-class-label">1A</span> 累積統計 (滿5次去自強班)</h3>
+        <button class="btn-reset" onclick="resetClassCycle()">🔄 重設此班計算週期</button>
+    </div>
+
+    <!-- 顯示上次重設日期的卡片區塊 -->
+    <div class="reset-badge-card">
+        <div class="reset-date-text">
+            📌 <strong>上次重設日期：</strong> 
+            <span id="last-reset-date-display" class="reset-date-highlight">載入中...</span>
+        </div>
+        <div style="font-size: 12px; color: #6B7280;">(試算表保有完整歷史數據)</div>
+    </div>
+
     <table>
         <thead>
             <tr>
                 <th>學號</th>
                 <th>姓名</th>
-                <th>累積欠交總數</th>
+                <th>週期內欠交</th>
                 <th>自強班懲罰次數</th>
                 <th>狀態</th>
             </tr>
@@ -97,19 +114,18 @@
 </div>
 
 <script>
-    // ⚠️ 請務必將下方網址替換為您發佈的 Google Apps Script Web App 網址
+    // ⚠️ 請修改為您最新部署的 Apps Script API 網址
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzA8i797p8NLUZWbG1zeOVJGvW3jw5eDjPRQJooayZI4iVtY9I8CEsZo3tIabYqA3Ur-A/exec";
 
     let db = {}; 
     let currentClass = '1A';
-    let currentMode = 'ADD'; // 'ADD' 代表欠交 (增加), 'SUB' 代表補交 (扣減)
+    let currentMode = 'ADD';
 
     window.onload = function() {
         document.getElementById('date-input').valueAsDate = new Date();
         loadSheetData();
     };
 
-    // 從 Google Sheet 載入名單與數據
     function loadSheetData() {
         fetch(GAS_WEB_APP_URL)
             .then(res => res.json())
@@ -123,7 +139,6 @@
             });
     }
 
-    // 切換班級頁籤
     function switchClass(className) {
         currentClass = className;
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText === className));
@@ -131,21 +146,19 @@
         renderAll();
     }
 
-    // 切換登記/補交模式
     function setMode(mode) {
         currentMode = mode;
         document.getElementById('btn-mode-add').className = `mode-btn ${mode === 'ADD' ? 'selected-missing' : ''}`;
         document.getElementById('btn-mode-sub').className = `mode-btn ${mode === 'SUB' ? 'selected-return' : ''}`;
     }
 
-    // 渲染學生名單列表
     function renderStudentList() {
         const listDiv = document.getElementById('student-list');
         listDiv.innerHTML = '';
         const classInfo = db[currentClass];
 
         if (!classInfo || !classInfo.students || classInfo.students.length === 0) {
-            listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">無學生資料，請確認 Google Sheet 分頁名稱與 A, B 欄格式。</div>';
+            listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">無學生資料。</div>';
             return;
         }
 
@@ -158,7 +171,7 @@
                     ${st.id} ${st.name}
                 </label>
                 <div>
-                    選擇數量：
+                    數量：
                     <select id="qty-${st.id}">
                         <option value="1">1 份</option>
                         <option value="2">2 份</option>
@@ -177,7 +190,6 @@
         });
     }
 
-    // 送出資料並儲存
     function submitData() {
         const dateStr = document.getElementById('date-input').value;
         const checkboxes = document.querySelectorAll('.st-cb');
@@ -188,7 +200,6 @@
             if (cb.checked) {
                 const stId = cb.value;
                 const qty = parseInt(document.getElementById(`qty-${stId}`).value) || 1;
-                // ADD 記錄正數，SUB 記錄負數 (扣減撤銷)
                 updates[stId] = (currentMode === 'ADD') ? qty : -qty;
                 cb.checked = false;
                 count++;
@@ -200,7 +211,6 @@
             return;
         }
 
-        // 即時更新前端區域變數，讓統計數據第一時間變動
         const classInfo = db[currentClass];
         classInfo.students.forEach(st => {
             if (updates.hasOwnProperty(st.id)) {
@@ -210,7 +220,6 @@
 
         renderStats();
 
-        // 非同步傳輸至後端 Google Apps Script
         fetch(GAS_WEB_APP_URL, {
             method: "POST",
             body: JSON.stringify({
@@ -220,20 +229,54 @@
             })
         })
         .then(res => res.json())
-        .then(() => alert(`✅ 已成功儲存【${currentClass}】紀錄並更新至雲端！`))
+        .then(() => alert(`✅ 已成功更新【${currentClass}】紀錄！`))
         .catch(err => alert("⚠️ 同步至試算表時出錯：" + err));
     }
 
-    // 渲染統計數據
+    // 重設該班級的計算週期並記錄日期
+    function resetClassCycle() {
+        const selectedDate = document.getElementById('date-input').value || new Date().toISOString().split('T')[0];
+        if (confirm(`確定要重設【${currentClass}】的自強班計算嗎？\n\n「上次重設日期」將更新為 ${selectedDate}，此日前的欠交紀錄將不計入自強班次數（Google Sheets 紀錄會完整保留）。`)) {
+            db[currentClass].resetDate = selectedDate;
+            renderStats();
+
+            fetch(GAS_WEB_APP_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "reset",
+                    className: currentClass,
+                    date: selectedDate
+                })
+            })
+            .then(res => res.json())
+            .then(() => alert(`✅ 已成功將【${currentClass}】上次重設日期記錄為 ${selectedDate}！`))
+            .catch(err => alert("⚠️ 重設日期失敗：" + err));
+        }
+    }
+
     function renderStats() {
         const tbody = document.getElementById('stats-body');
         tbody.innerHTML = '';
         const classInfo = db[currentClass];
         if (!classInfo || !classInfo.students) return;
 
+        // 更新上次重設日期文字顯示
+        const resetDate = classInfo.resetDate || "";
+        const resetDisplay = document.getElementById('last-reset-date-display');
+        if (resetDisplay) {
+            resetDisplay.innerHTML = resetDate 
+                ? `${resetDate} <span style="font-size:12px; color:#6B7280; font-weight:normal;">(統計僅採計 ${resetDate} 含以後)</span>` 
+                : `<span style="color:#6B7280; font-weight:normal;">無（目前採計全部歷史紀錄）</span>`;
+        }
+
         classInfo.students.forEach(st => {
-            // 加總學生各日期的欠交/補交數量 (最低扣至 0 份)
-            let netTotal = Object.values(st.dailyRecords).reduce((a, b) => a + b, 0);
+            let netTotal = 0;
+            // 僅計算在 resetDate 之後（含當天）的欠交紀錄
+            Object.keys(st.dailyRecords).forEach(dateStr => {
+                if (!resetDate || dateStr >= resetDate) {
+                    netTotal += st.dailyRecords[dateStr];
+                }
+            });
             if (netTotal < 0) netTotal = 0;
 
             const penaltyCount = Math.floor(netTotal / 5);
