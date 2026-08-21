@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨班級功課欠交與補交管理系統</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --danger: #EF4444;
+            --success: #10B981;
+            --bg: #F3F4F6;
+        }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); padding: 20px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .class-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #E5E7EB; padding: 6px; border-radius: 8px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        .tab-btn.active { background: white; color: var(--primary); }
+        
+        .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; background: #EEF2FF; padding: 12px; border-radius: 8px; }
+        .mode-btn { flex: 1; padding: 10px; border: 2px solid var(--primary); background: white; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; }
+        .mode-btn.selected-missing { background: var(--danger); color: white; border-color: var(--danger); }
+        .mode-btn.selected-return { background: var(--success); color: white; border-color: var(--success); }
+
+        .student-list { max-height: 350px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 20px; }
+        .student-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #F3F4F6; }
+        .student-info { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; }
+        input[type="checkbox"] { transform: scale(1.3); }
+        select { padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+
+        .btn-submit { background: var(--primary); color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #E5E7EB; padding: 8px 12px; text-align: left; }
+        th { background: #F9FAFB; }
+        .badge-danger { background: #FEE2E2; color: #991B1B; padding: 2px 8px; border-radius: 12px; font-weight: bold; }
+        .badge-warning { background: #FEF3C7; color: #92400E; padding: 2px 8px; border-radius: 12px; }
+        .badge-success { background: #D1FAE5; color: #065F46; padding: 2px 8px; border-radius: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏫 班級功課欠交與補交系統</h2>
+
+    <!-- 1. 班級頁籤 -->
+    <div class="class-tabs">
+        <button class="tab-btn active" onclick="switchClass('班級 A')">班級 A</button>
+        <button class="tab-btn" onclick="switchClass('班級 B')">班級 B</button>
+        <button class="tab-btn" onclick="switchClass('班級 C')">班級 C</button>
+        <button class="tab-btn" onclick="switchClass('班級 D')">班級 D</button>
+    </div>
+
+    <!-- 2. 日期與模式切換 -->
+    <div style="margin-bottom: 15px;">
+        <label><strong>日期：</strong></label>
+        <input type="date" id="date-input" style="padding: 6px; border-radius: 4px; border: 1px solid #ccc;">
+    </div>
+
+    <div class="mode-selector">
+        <div class="mode-btn selected-missing" id="btn-mode-add" onclick="setMode('ADD')">🔴 登記欠交功課</div>
+        <div class="mode-btn" id="btn-mode-sub" onclick="setMode('SUB')">🟢 補交功課 (扣減撤銷)</div>
+    </div>
+
+    <!-- 3. 學生選擇清單 -->
+    <div class="student-list" id="student-list">載入資料中...</div>
+
+    <button class="btn-submit" onclick="submitData()">儲存並同步至 Google Sheets</button>
+
+    <!-- 4. 全班累積統計儀表板 -->
+    <h3 style="margin-top: 30px;">📊 <span id="current-class-label">班級 A</span> 累積統計 (滿5次去自強班)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>學號</th>
+                <th>姓名</th>
+                <th>累積欠交總數</th>
+                <th>自強班懲罰次數</th>
+                <th>狀態</th>
+            </tr>
+        </thead>
+        <tbody id="stats-body"></tbody>
+    </table>
+</div>
+
+<script>
+    const GAS_WEB_APP_URL = "您的_GOOGLE_APPS_SCRIPT_WEB_APP_網址";
+
+    let db = {}; // 儲存 Sheets 傳回的完整結構
+    let currentClass = '班級 A';
+    let currentMode = 'ADD'; // 'ADD' 欠交, 'SUB' 補交
+
+    window.onload = function() {
+        document.getElementById('date-input').valueAsDate = new Date();
+        loadSheetData();
+    };
+
+    function loadSheetData() {
+        fetch(GAS_WEB_APP_URL)
+            .then(res => res.json())
+            .then(data => {
+                db = data;
+                renderAll();
+            })
+            .catch(err => alert("⚠️ 資料載入失敗：" + err));
+    }
+
+    function switchClass(className) {
+        currentClass = className;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText === className));
+        document.getElementById('current-class-label').innerText = className;
+        renderAll();
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('btn-mode-add').className = `mode-btn ${mode === 'ADD' ? 'selected-missing' : ''}`;
+        document.getElementById('btn-mode-sub').className = `mode-btn ${mode === 'SUB' ? 'selected-return' : ''}`;
+    }
+
+    function renderStudentList() {
+        const listDiv = document.getElementById('student-list');
+        listDiv.innerHTML = '';
+        const classInfo = db[currentClass];
+
+        if (!classInfo || !classInfo.students || classInfo.students.length === 0) {
+            listDiv.innerHTML = '<div style="padding:15px; color:#666;">無學生資料。</div>';
+            return;
+        }
+
+        classInfo.students.forEach(st => {
+            const item = document.createElement('div');
+            item.className = 'student-item';
+            item.innerHTML = `
+                <label class="student-info">
+                    <input type="checkbox" class="st-cb" value="${st.id}">
+                    ${st.id}號 ${st.name}
+                </label>
+                <div>
+                    數量列表：
+                    <select id="qty-${st.id}">
+                        <option value="1">1 份</option>
+                        <option value="2">2 份</option>
+                        <option value="3">3 份</option>
+                        <option value="4">4 份</option>
+                        <option value="5">5 份</option>
+                    </select>
+                </div>
+            `;
+            listDiv.appendChild(item);
+        });
+    }
+
+    function submitData() {
+        const dateStr = document.getElementById('date-input').value;
+        const checkboxes = document.querySelectorAll('.st-cb');
+        let updates = {};
+        let count = 0;
+
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const stId = cb.value;
+                const qty = parseInt(document.getElementById(`qty-${stId}`).value) || 1;
+                // ADD 模式記錄正數，SUB 補交模式記錄負數 (扣減)
+                updates[stId] = (currentMode === 'ADD') ? qty : -qty;
+                cb.checked = false;
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            alert('⚠️ 請先勾選學生！');
+            return;
+        }
+
+        // 更新本地端 UI 數據
+        const classInfo = db[currentClass];
+        classInfo.students.forEach(st => {
+            if (updates.hasOwnProperty(st.id)) {
+                st.dailyRecords[dateStr] = (st.dailyRecords[dateStr] || 0) + updates[st.id];
+            }
+        });
+
+        renderStats();
+
+        // 傳送至後端寫入/建立新欄位
+        fetch(GAS_WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify({
+                className: currentClass,
+                date: dateStr,
+                updates: updates
+            })
+        })
+        .then(res => res.json())
+        .then(() => alert(`✅ 已成功儲存【${currentClass}】紀錄並開啟/更新日期欄位！`))
+        .catch(err => alert("⚠️ 同步試算表失敗：" + err));
+    }
+
+    function renderStats() {
+        const tbody = document.getElementById('stats-body');
+        tbody.innerHTML = '';
+        const classInfo = db[currentClass];
+        if (!classInfo) return;
+
+        classInfo.students.forEach(st => {
+            // 計算歷史所有日期欄位總和 (欠交 - 補交)
+            let netTotal = Object.values(st.dailyRecords).reduce((a, b) => a + b, 0);
+            if (netTotal < 0) netTotal = 0; // 最低扣至 0
+
+            const penaltyCount = Math.floor(netTotal / 5);
+
+            let statusBadge = '<span class="badge-success">🟢 良好</span>';
+            if (netTotal > 0 && netTotal % 5 === 0) {
+                statusBadge = '<span class="badge-danger">🚨 滿5次！去自強班</span>';
+            } else if (netTotal > 0) {
+                statusBadge = `<span class="badge-warning">🟡 累積 ${netTotal} 份</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${st.id}</td>
+                <td>${st.name}</td>
+                <td><strong>${netTotal}</strong> 份</td>
+                <td><b style="color:red;">${penaltyCount}</b> 次</td>
+                <td>${statusBadge}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderAll() {
+        renderStudentList();
+        renderStats();
+    }
+</script>
+</body>
+</html>
