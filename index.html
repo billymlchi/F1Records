@@ -33,6 +33,7 @@
 
         .btn-submit { background: var(--primary); color: white; border: none; padding: 14px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
         .btn-submit:hover { opacity: 0.9; }
+        .btn-submit:disabled { background: #9CA3AF; cursor: not-allowed; opacity: 0.7; }
         
         .reset-badge-card { background: #F3F4F6; border-left: 4px solid var(--primary); padding: 10px 15px; border-radius: 6px; margin-top: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
         .reset-date-text { font-size: 14px; color: #374151; }
@@ -41,6 +42,7 @@
         .stats-header { display: flex; justify-content: space-between; align-items: center; margin-top: 35px; border-bottom: 2px solid var(--bg); padding-bottom: 8px; }
         .btn-reset { background: #6B7280; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
         .btn-reset:hover { background: #4B5563; }
+        .btn-reset:disabled { background: #D1D5DB; cursor: not-allowed; }
 
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { border: 1px solid #E5E7EB; padding: 8px 12px; text-align: left; }
@@ -48,6 +50,8 @@
         .badge-danger { background: #FEE2E2; color: #991B1B; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
         .badge-warning { background: #FEF3C7; color: #92400E; padding: 3px 8px; border-radius: 12px; }
         .badge-success { background: #D1FAE5; color: #065F46; padding: 3px 8px; border-radius: 12px; }
+        
+        .loading-box { text-align: center; padding: 30px; color: #6B7280; font-size: 15px; }
     </style>
 </head>
 <body>
@@ -55,7 +59,6 @@
 <div class="container">
     <h2 style="border-bottom: 2px solid var(--bg); padding-bottom: 8px; margin-top:0;">🏫 班級功課欠交與補交管理系統</h2>
 
-    <!-- 1. 班級頁籤 -->
     <div class="class-tabs">
         <button class="tab-btn active" onclick="switchClass('1A')">1A</button>
         <button class="tab-btn" onclick="switchClass('1B')">1B</button>
@@ -63,11 +66,10 @@
         <button class="tab-btn" onclick="switchClass('1D')">1D</button>
     </div>
 
-    <!-- 2. 日期選擇 (預設自動抓取香港時間，亦可手動更改) -->
     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
         <label for="date-input"><strong>日期：</strong></label>
         <input type="date" id="date-input" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; cursor: pointer;">
-        <span style="font-size: 12px; color: #6B7280;">(開啟時自動抓取香港當天日期，可點擊更換)</span>
+        <span style="font-size: 12px; color: #6B7280;">(開啟時自動抓取香港時間)</span>
     </div>
 
     <div class="mode-selector">
@@ -75,17 +77,15 @@
         <div class="mode-btn" id="btn-mode-sub" onclick="setMode('SUB')">🟢 補交功課 (扣減撤銷)</div>
     </div>
 
-    <!-- 3. 學生點名與數量 -->
     <div class="student-list" id="student-list">
-        <div style="padding: 20px; text-align: center; color: #666;">載入資料中，請稍候...</div>
+        <div class="loading-box">⏳ 正在讀取香港試算表數據...</div>
     </div>
 
-    <button class="btn-submit" onclick="submitData()">儲存並同步至 Google Sheets</button>
+    <button class="btn-submit" id="btn-submit-action" onclick="submitData()">儲存並同步至 Google Sheets</button>
 
-    <!-- 4. 統計視窗與上次重設日期提示 -->
     <div class="stats-header">
         <h3 style="margin: 0;">📊 班級 <span id="current-class-label">1A</span> 累積統計 (滿5次去自強班)</h3>
-        <button class="btn-reset" onclick="resetClassCycle()">🔄 重設此班計算週期</button>
+        <button class="btn-reset" id="btn-reset-action" onclick="resetClassCycle()">🔄 重設此班計算週期</button>
     </div>
 
     <div class="reset-badge-card">
@@ -108,7 +108,7 @@
             </tr>
         </thead>
         <tbody id="stats-body">
-            <tr><td colspan="6" style="text-align: center; color: #888;">載入中...</td></tr>
+            <tr><td colspan="6" class="loading-box">⏳ 數據載入中...</td></tr>
         </tbody>
     </table>
 </div>
@@ -117,38 +117,32 @@
     // ⚠️ 請修改為您最新部署的 Apps Script API 網址
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzA8i797p8NLUZWbG1zeOVJGvW3jw5eDjPRQJooayZI4iVtY9I8CEsZo3tIabYqA3Ur-A/exec";
 
-    let db = {}; 
+    let db = null;
     let currentClass = '1A';
     let currentMode = 'ADD';
+    let isSubmitting = false; // 防止重複提交開關
 
-    // 強制取得香港時間 (YYYY-MM-DD 格式)
     function getHKDateString() {
         return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Hong_Kong' }).format(new Date());
     }
 
-    // 初始化日期輸入框為香港當日日期
     function initHKDate() {
         const dateInput = document.getElementById('date-input');
-        if (dateInput) {
-            dateInput.value = getHKDateString();
-        }
+        if (dateInput) dateInput.value = getHKDateString();
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-        initHKDate(); // 每次打開頁面自動載入香港當日日期
+        initHKDate();
         loadSheetData();
     });
 
-    // 處理頁面重新喚醒/切換分頁回到此頁時自動更新為最新香港日期
-    window.addEventListener('pageshow', () => {
-        initHKDate();
-    });
-
     function loadSheetData() {
+        toggleButtons(false);
         fetch(GAS_WEB_APP_URL)
             .then(res => res.json())
             .then(data => {
                 db = data;
+                toggleButtons(true);
                 renderAll();
             })
             .catch(err => {
@@ -170,7 +164,6 @@
         document.getElementById('btn-mode-sub').className = `mode-btn ${mode === 'SUB' ? 'selected-return' : ''}`;
     }
 
-    // 日期格式正規化 (YYYY-MM-DD)
     function normalizeDate(dStr) {
         if (!dStr) return "";
         let d = new Date(dStr);
@@ -181,11 +174,22 @@
         return `${yyyy}-${mm}-${dd}`;
     }
 
+    function toggleButtons(enable) {
+        if (isSubmitting) return;
+        document.getElementById('btn-submit-action').disabled = !enable;
+        document.getElementById('btn-reset-action').disabled = !enable;
+    }
+
     function renderStudentList() {
         const listDiv = document.getElementById('student-list');
         listDiv.innerHTML = '';
-        const classInfo = db[currentClass];
 
+        if (!db) {
+            listDiv.innerHTML = '<div class="loading-box">⏳ 資料載入中，請稍候...</div>';
+            return;
+        }
+
+        const classInfo = db[currentClass];
         if (!classInfo || !classInfo.students || classInfo.students.length === 0) {
             listDiv.innerHTML = '<div style="padding:20px; text-align:center; color:#666;">無學生資料。</div>';
             return;
@@ -207,11 +211,6 @@
                         <option value="3">3 份</option>
                         <option value="4">4 份</option>
                         <option value="5">5 份</option>
-                        <option value="6">6 份</option>
-                        <option value="7">7 份</option>
-                        <option value="8">8 份</option>
-                        <option value="9">9 份</option>
-                        <option value="10">10 份</option>
                     </select>
                 </div>
             `;
@@ -220,6 +219,8 @@
     }
 
     function submitData() {
+        if (!db || isSubmitting) return;
+
         const dateStr = document.getElementById('date-input').value || getHKDateString();
         const checkboxes = document.querySelectorAll('.st-cb');
         let updates = {};
@@ -230,7 +231,6 @@
                 const stId = cb.value;
                 const qty = parseInt(document.getElementById(`qty-${stId}`).value) || 1;
                 updates[stId] = (currentMode === 'ADD') ? qty : -qty;
-                cb.checked = false;
                 count++;
             }
         });
@@ -240,14 +240,12 @@
             return;
         }
 
-        const classInfo = db[currentClass];
-        classInfo.students.forEach(st => {
-            if (updates.hasOwnProperty(st.id)) {
-                st.dailyRecords[dateStr] = (st.dailyRecords[dateStr] || 0) + updates[st.id];
-            }
-        });
-
-        renderStats();
+        // 🔒 鎖定介面防止重複發送
+        isSubmitting = true;
+        const submitBtn = document.getElementById('btn-submit-action');
+        const origText = submitBtn.innerText;
+        submitBtn.innerText = "⏳ 數據同步寫入中，請稍候...";
+        submitBtn.disabled = true;
 
         fetch(GAS_WEB_APP_URL, {
             method: "POST",
@@ -258,16 +256,40 @@
             })
         })
         .then(res => res.json())
-        .then(() => alert(`✅ 已成功更新【${currentClass}】紀錄！`))
-        .catch(err => alert("⚠️ 同步至試算表時出錯：" + err));
+        .then(res => {
+            if (res.status === "success") {
+                // 只有在後端回傳成功時才更新本地狀態
+                const classInfo = db[currentClass];
+                classInfo.students.forEach(st => {
+                    if (updates.hasOwnProperty(st.id)) {
+                        st.dailyRecords[dateStr] = (st.dailyRecords[dateStr] || 0) + updates[st.id];
+                    }
+                });
+                checkboxes.forEach(cb => { if (cb.checked) cb.checked = false; });
+                renderStats();
+                alert(`✅ 已成功更新【${currentClass}】紀錄！`);
+            } else {
+                alert("⚠️ 同步失敗：" + (res.msg || "系統繁忙"));
+            }
+        })
+        .catch(err => {
+            alert("⚠️ 網路超時或連線失敗，請稍後重試：" + err.message);
+        })
+        .finally(() => {
+            isSubmitting = false;
+            submitBtn.innerText = origText;
+            submitBtn.disabled = false;
+        });
     }
 
-    // 重設該班級的計算週期
     function resetClassCycle() {
+        if (!db || isSubmitting) return;
         const selectedDate = document.getElementById('date-input').value || getHKDateString();
-        if (confirm(`確定要重設【${currentClass}】的計算週期嗎？\n\n自 ${selectedDate}（含）之前的紀錄將歸零，不再計入「週期內欠交」。\n（Google Sheets 試算表會完整保留歷史數據）`)) {
-            db[currentClass].resetDate = selectedDate;
-            renderStats();
+        if (confirm(`確定要重設【${currentClass}】的計算週期嗎？\n\n自 ${selectedDate}（含）之前的紀錄將歸零，不再計入「週期內欠交」。`)) {
+            
+            isSubmitting = true;
+            const resetBtn = document.getElementById('btn-reset-action');
+            resetBtn.disabled = true;
 
             fetch(GAS_WEB_APP_URL, {
                 method: "POST",
@@ -278,19 +300,38 @@
                 })
             })
             .then(res => res.json())
-            .then(() => alert(`✅ 已成功重設！【${currentClass}】在 ${selectedDate}（含）前的舊數據已歸零。`))
-            .catch(err => alert("⚠️ 重設失敗：" + err));
+            .then(res => {
+                if (res.status === "success") {
+                    db[currentClass].resetDate = selectedDate;
+                    renderStats();
+                    alert(`✅ 已成功重設！【${currentClass}】在 ${selectedDate}（含）前的舊數據已歸零。`);
+                } else {
+                    alert("⚠️ 重設失敗：" + (res.msg || "系統繁忙"));
+                }
+            })
+            .catch(err => alert("⚠️ 重設失敗：" + err.message))
+            .finally(() => {
+                isSubmitting = false;
+                resetBtn.disabled = false;
+            });
         }
     }
 
     function renderStats() {
         const tbody = document.getElementById('stats-body');
+        const resetDisplay = document.getElementById('last-reset-date-display');
         tbody.innerHTML = '';
+
+        if (!db) {
+            if (resetDisplay) resetDisplay.innerText = "載入中...";
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-box">⏳ 資料載入中...</td></tr>';
+            return;
+        }
+
         const classInfo = db[currentClass];
         if (!classInfo || !classInfo.students) return;
 
         const resetDate = classInfo.resetDate ? normalizeDate(classInfo.resetDate) : "";
-        const resetDisplay = document.getElementById('last-reset-date-display');
         if (resetDisplay) {
             resetDisplay.innerHTML = resetDate 
                 ? `${resetDate} <span style="font-size:12px; color:#6B7280; font-weight:normal;">(僅採計 ${resetDate} 之後的新紀錄)</span>` 
@@ -306,10 +347,7 @@
                     const val = Number(st.dailyRecords[dateStr]) || 0;
                     const normDate = normalizeDate(dateStr);
 
-                    // 1. 歷史總欠交：累計開學至今全部紀錄
                     allTimeTotal += val;
-
-                    // 2. 週期內欠交：僅採計大於重設日期的紀錄
                     if (!resetDate || normDate > resetDate) {
                         cycleTotal += val;
                     }
@@ -319,7 +357,6 @@
             if (cycleTotal < 0) cycleTotal = 0;
             if (allTimeTotal < 0) allTimeTotal = 0;
 
-            // 自強班次數以「週期內欠交」計算
             const penaltyCount = Math.floor(cycleTotal / 5);
 
             let statusBadge = '<span class="badge-success">🟢 良好</span>';
