@@ -13,7 +13,7 @@
             --bg: #F3F4F6;
         }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); padding: 20px; color: #333; margin: 0; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+        .container { max-width: 850px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
         
         .class-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #E5E7EB; padding: 6px; border-radius: 8px; }
         .tab-btn { flex: 1; padding: 12px 0; border: none; background: transparent; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; color: #4B5563; }
@@ -34,7 +34,6 @@
         .btn-submit { background: var(--primary); color: white; border: none; padding: 14px; width: 100%; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
         .btn-submit:hover { opacity: 0.9; }
         
-        /* 重設日期顯示卡片 */
         .reset-badge-card { background: #F3F4F6; border-left: 4px solid var(--primary); padding: 10px 15px; border-radius: 6px; margin-top: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
         .reset-date-text { font-size: 14px; color: #374151; }
         .reset-date-highlight { font-weight: bold; color: var(--primary); font-size: 15px; }
@@ -64,10 +63,11 @@
         <button class="tab-btn" onclick="switchClass('1D')">1D</button>
     </div>
 
-    <!-- 2. 日期與模式 -->
+    <!-- 2. 日期選擇 (預設自動抓取香港時間，亦可手動更改) -->
     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-        <label><strong>日期：</strong></label>
-        <input type="date" id="date-input" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;">
+        <label for="date-input"><strong>日期：</strong></label>
+        <input type="date" id="date-input" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; cursor: pointer;">
+        <span style="font-size: 12px; color: #6B7280;">(開啟時自動抓取香港當天日期，可點擊更換)</span>
     </div>
 
     <div class="mode-selector">
@@ -88,7 +88,6 @@
         <button class="btn-reset" onclick="resetClassCycle()">🔄 重設此班計算週期</button>
     </div>
 
-    <!-- 顯示上次重設日期的卡片區塊 -->
     <div class="reset-badge-card">
         <div class="reset-date-text">
             📌 <strong>上次重設日期：</strong> 
@@ -103,28 +102,47 @@
                 <th>學號</th>
                 <th>姓名</th>
                 <th>週期內欠交</th>
+                <th>歷史總欠交</th>
                 <th>自強班懲罰次數</th>
                 <th>狀態</th>
             </tr>
         </thead>
         <tbody id="stats-body">
-            <tr><td colspan="5" style="text-align: center; color: #888;">載入中...</td></tr>
+            <tr><td colspan="6" style="text-align: center; color: #888;">載入中...</td></tr>
         </tbody>
     </table>
 </div>
 
 <script>
     // ⚠️ 請修改為您最新部署的 Apps Script API 網址
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzA8i797p8NLUZWbG1zeOVJGvW3jw5eDjPRQJooayZI4iVtY9I8CEsZo3tIabYqA3Ur-A/exec";
+    const GAS_WEB_APP_URL = "您的_GOOGLE_APPS_SCRIPT_WEB_APP_網址";
 
     let db = {}; 
     let currentClass = '1A';
     let currentMode = 'ADD';
 
-    window.onload = function() {
-        document.getElementById('date-input').valueAsDate = new Date();
+    // 強制取得香港時間 (YYYY-MM-DD 格式)
+    function getHKDateString() {
+        return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Hong_Kong' }).format(new Date());
+    }
+
+    // 初始化日期輸入框為香港當日日期
+    function initHKDate() {
+        const dateInput = document.getElementById('date-input');
+        if (dateInput) {
+            dateInput.value = getHKDateString();
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        initHKDate(); // 每次打開頁面自動載入香港當日日期
         loadSheetData();
-    };
+    });
+
+    // 處理頁面重新喚醒/切換分頁回到此頁時自動更新為最新香港日期
+    window.addEventListener('pageshow', () => {
+        initHKDate();
+    });
 
     function loadSheetData() {
         fetch(GAS_WEB_APP_URL)
@@ -150,6 +168,17 @@
         currentMode = mode;
         document.getElementById('btn-mode-add').className = `mode-btn ${mode === 'ADD' ? 'selected-missing' : ''}`;
         document.getElementById('btn-mode-sub').className = `mode-btn ${mode === 'SUB' ? 'selected-return' : ''}`;
+    }
+
+    // 日期格式正規化 (YYYY-MM-DD)
+    function normalizeDate(dStr) {
+        if (!dStr) return "";
+        let d = new Date(dStr);
+        if (isNaN(d.getTime())) return String(dStr).trim();
+        let yyyy = d.getFullYear();
+        let mm = String(d.getMonth() + 1).padStart(2, '0');
+        let dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
     }
 
     function renderStudentList() {
@@ -191,7 +220,7 @@
     }
 
     function submitData() {
-        const dateStr = document.getElementById('date-input').value;
+        const dateStr = document.getElementById('date-input').value || getHKDateString();
         const checkboxes = document.querySelectorAll('.st-cb');
         let updates = {};
         let count = 0;
@@ -233,10 +262,10 @@
         .catch(err => alert("⚠️ 同步至試算表時出錯：" + err));
     }
 
-    // 重設該班級的計算週期並記錄日期
+    // 重設該班級的計算週期
     function resetClassCycle() {
-        const selectedDate = document.getElementById('date-input').value || new Date().toISOString().split('T')[0];
-        if (confirm(`確定要重設【${currentClass}】的自強班計算嗎？\n\n「上次重設日期」將更新為 ${selectedDate}，此日前的欠交紀錄將不計入自強班次數（Google Sheets 紀錄會完整保留）。`)) {
+        const selectedDate = document.getElementById('date-input').value || getHKDateString();
+        if (confirm(`確定要重設【${currentClass}】的計算週期嗎？\n\n自 ${selectedDate}（含）之前的紀錄將歸零，不再計入「週期內欠交」。\n（Google Sheets 試算表會完整保留歷史數據）`)) {
             db[currentClass].resetDate = selectedDate;
             renderStats();
 
@@ -249,8 +278,8 @@
                 })
             })
             .then(res => res.json())
-            .then(() => alert(`✅ 已成功將【${currentClass}】上次重設日期記錄為 ${selectedDate}！`))
-            .catch(err => alert("⚠️ 重設日期失敗：" + err));
+            .then(() => alert(`✅ 已成功重設！【${currentClass}】在 ${selectedDate}（含）前的舊數據已歸零。`))
+            .catch(err => alert("⚠️ 重設失敗：" + err));
         }
     }
 
@@ -260,40 +289,53 @@
         const classInfo = db[currentClass];
         if (!classInfo || !classInfo.students) return;
 
-        // 更新上次重設日期文字顯示
-        const resetDate = classInfo.resetDate || "";
+        const resetDate = classInfo.resetDate ? normalizeDate(classInfo.resetDate) : "";
         const resetDisplay = document.getElementById('last-reset-date-display');
         if (resetDisplay) {
             resetDisplay.innerHTML = resetDate 
-                ? `${resetDate} <span style="font-size:12px; color:#6B7280; font-weight:normal;">(統計僅採計 ${resetDate} 含以後)</span>` 
-                : `<span style="color:#6B7280; font-weight:normal;">無（目前採計全部歷史紀錄）</span>`;
+                ? `${resetDate} <span style="font-size:12px; color:#6B7280; font-weight:normal;">(僅採計 ${resetDate} 之後的新紀錄)</span>` 
+                : `<span style="color:#6B7280; font-weight:normal;">無（採計全部歷史紀錄）</span>`;
         }
 
         classInfo.students.forEach(st => {
-            let netTotal = 0;
-            // 僅計算在 resetDate 之後（含當天）的欠交紀錄
-            Object.keys(st.dailyRecords).forEach(dateStr => {
-                if (!resetDate || dateStr >= resetDate) {
-                    netTotal += st.dailyRecords[dateStr];
-                }
-            });
-            if (netTotal < 0) netTotal = 0;
+            let cycleTotal = 0;
+            let allTimeTotal = 0;
 
-            const penaltyCount = Math.floor(netTotal / 5);
+            if (st.dailyRecords) {
+                Object.keys(st.dailyRecords).forEach(dateStr => {
+                    const val = Number(st.dailyRecords[dateStr]) || 0;
+                    const normDate = normalizeDate(dateStr);
+
+                    // 1. 歷史總欠交：累計開學至今全部紀錄
+                    allTimeTotal += val;
+
+                    // 2. 週期內欠交：僅採計大於重設日期的紀錄
+                    if (!resetDate || normDate > resetDate) {
+                        cycleTotal += val;
+                    }
+                });
+            }
+
+            if (cycleTotal < 0) cycleTotal = 0;
+            if (allTimeTotal < 0) allTimeTotal = 0;
+
+            // 自強班次數以「週期內欠交」計算
+            const penaltyCount = Math.floor(cycleTotal / 5);
 
             let statusBadge = '<span class="badge-success">🟢 良好</span>';
-            if (netTotal > 0 && netTotal % 5 === 0) {
+            if (cycleTotal > 0 && cycleTotal % 5 === 0) {
                 statusBadge = '<span class="badge-danger">🚨 滿5次！去自強班</span>';
-            } else if (netTotal > 0) {
-                const remain = 5 - (netTotal % 5);
-                statusBadge = `<span class="badge-warning">🟡 累積 ${netTotal} 份 (差 ${remain} 份)</span>`;
+            } else if (cycleTotal > 0) {
+                const remain = 5 - (cycleTotal % 5);
+                statusBadge = `<span class="badge-warning">🟡 累積 ${cycleTotal} 份 (差 ${remain} 份)</span>`;
             }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${st.id}</td>
                 <td>${st.name}</td>
-                <td><strong>${netTotal}</strong> 份</td>
+                <td><strong>${cycleTotal}</strong> 份</td>
+                <td><span style="color:#6B7280; font-weight:bold;">${allTimeTotal} 份</span></td>
                 <td><b style="color:red;">${penaltyCount}</b> 次</td>
                 <td>${statusBadge}</td>
             `;
