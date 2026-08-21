@@ -101,8 +101,8 @@
             <tr>
                 <th>學號</th>
                 <th>姓名</th>
-                <th>週期內欠交</th>
                 <th>歷史總欠交</th>
+                <th>週期內欠交</th>
                 <th>自強班懲罰次數</th>
                 <th>狀態</th>
             </tr>
@@ -114,13 +114,13 @@
 </div>
 
 <script>
-    // ⚠️ 請修改為您最新部署的 Apps Script API 網址
+    // ⚠️ 請確認此處為您最新部署的 Apps Script API 網址
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzA8i797p8NLUZWbG1zeOVJGvW3jw5eDjPRQJooayZI4iVtY9I8CEsZo3tIabYqA3Ur-A/exec";
 
     let db = null;
     let currentClass = '1A';
     let currentMode = 'ADD';
-    let isSubmitting = false; // 防止重複提交開關
+    let isSubmitting = false;
 
     function getHKDateString() {
         return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Hong_Kong' }).format(new Date());
@@ -240,7 +240,6 @@
             return;
         }
 
-        // 🔒 鎖定介面防止重複發送
         isSubmitting = true;
         const submitBtn = document.getElementById('btn-submit-action');
         const origText = submitBtn.innerText;
@@ -258,7 +257,6 @@
         .then(res => res.json())
         .then(res => {
             if (res.status === "success") {
-                // 只有在後端回傳成功時才更新本地狀態
                 const classInfo = db[currentClass];
                 classInfo.students.forEach(st => {
                     if (updates.hasOwnProperty(st.id)) {
@@ -368,11 +366,12 @@
             }
 
             const tr = document.createElement('tr');
+            // 🔄 已調換「歷史總欠交」與「週期內欠交」的位置
             tr.innerHTML = `
                 <td>${st.id}</td>
                 <td>${st.name}</td>
-                <td><strong>${cycleTotal}</strong> 份</td>
                 <td><span style="color:#6B7280; font-weight:bold;">${allTimeTotal} 份</span></td>
+                <td><strong>${cycleTotal}</strong> 份</td>
                 <td><b style="color:red;">${penaltyCount}</b> 次</td>
                 <td>${statusBadge}</td>
             `;
