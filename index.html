@@ -15,8 +15,35 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); padding: 20px; color: #333; margin: 0; }
         .container { max-width: 850px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
         
-        .class-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #E5E7EB; padding: 6px; border-radius: 8px; }
-        .tab-btn { flex: 1; padding: 12px 0; border: none; background: transparent; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; color: #4B5563; }
+        /* 🔄 支援滾動條與動態寬度的班級頁籤 */
+        .class-tabs { 
+            display: flex; 
+            gap: 8px; 
+            margin-bottom: 20px; 
+            background: #E5E7EB; 
+            padding: 6px; 
+            border-radius: 8px; 
+            overflow-x: auto; 
+            white-space: nowrap; 
+            scrollbar-width: thin; 
+        }
+        .class-tabs::-webkit-scrollbar { height: 6px; }
+        .class-tabs::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+        .class-tabs::-webkit-scrollbar-track { background: transparent; }
+
+        .tab-btn { 
+            flex: 0 0 auto; 
+            min-width: 70px; 
+            padding: 10px 18px; 
+            border: none; 
+            background: transparent; 
+            font-size: 16px; 
+            font-weight: bold; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            color: #4B5563; 
+            transition: all 0.2s;
+        }
         .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         
         .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; background: #EEF2FF; padding: 12px; border-radius: 8px; }
@@ -59,11 +86,9 @@
 <div class="container">
     <h2 style="border-bottom: 2px solid var(--bg); padding-bottom: 8px; margin-top:0;">🏫 班級功課欠交與補交管理系統</h2>
 
-    <div class="class-tabs">
-        <button class="tab-btn active" onclick="switchClass('1A')">1A</button>
-        <button class="tab-btn" onclick="switchClass('1B')">1B</button>
-        <button class="tab-btn" onclick="switchClass('1C')">1C</button>
-        <button class="tab-btn" onclick="switchClass('1D')">1D</button>
+    <!-- 🔄 動態生成頁籤容器 -->
+    <div class="class-tabs" id="class-tabs-container">
+        <div class="loading-box" style="padding: 5px; font-size: 14px;">載入班級中...</div>
     </div>
 
     <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
@@ -84,7 +109,7 @@
     <button class="btn-submit" id="btn-submit-action" onclick="submitData()">儲存並同步至 Google Sheets</button>
 
     <div class="stats-header">
-        <h3 style="margin: 0;">📊 班級 <span id="current-class-label">1A</span> 累積統計 (滿5次去自強班)</h3>
+        <h3 style="margin: 0;">📊 班級 <span id="current-class-label">--</span> 累積統計 (滿5次去自強班)</h3>
         <button class="btn-reset" id="btn-reset-action" onclick="resetClassCycle()">🔄 重設此班計算週期</button>
     </div>
 
@@ -118,7 +143,7 @@
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzA8i797p8NLUZWbG1zeOVJGvW3jw5eDjPRQJooayZI4iVtY9I8CEsZo3tIabYqA3Ur-A/exec";
 
     let db = null;
-    let currentClass = '1A';
+    let currentClass = '';
     let currentMode = 'ADD';
     let isSubmitting = false;
 
@@ -143,6 +168,7 @@
             .then(data => {
                 db = data;
                 toggleButtons(true);
+                renderClassTabs();
                 renderAll();
             })
             .catch(err => {
@@ -151,9 +177,40 @@
             });
     }
 
+    // 🔄 動態渲染班級頁籤（含拉動條支援）
+    function renderClassTabs() {
+        const tabsContainer = document.getElementById('class-tabs-container');
+        tabsContainer.innerHTML = '';
+
+        if (!db) return;
+
+        const classNames = Object.keys(db);
+        if (classNames.length === 0) {
+            tabsContainer.innerHTML = '<div style="padding:5px;">未創立任何班級分頁</div>';
+            return;
+        }
+
+        // 若尚未設定當前班級或當前班級不在資料庫中，預設選取第一個
+        if (!currentClass || !classNames.includes(currentClass)) {
+            currentClass = classNames[0];
+        }
+
+        classNames.forEach(className => {
+            const btn = document.createElement('button');
+            btn.className = `tab-btn ${className === currentClass ? 'active' : ''}`;
+            btn.innerText = className;
+            btn.onclick = () => switchClass(className);
+            tabsContainer.appendChild(btn);
+        });
+
+        document.getElementById('current-class-label').innerText = currentClass;
+    }
+
     function switchClass(className) {
         currentClass = className;
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.innerText === className));
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.toggle('active', b.innerText === className);
+        });
         document.getElementById('current-class-label').innerText = className;
         renderAll();
     }
@@ -366,7 +423,6 @@
             }
 
             const tr = document.createElement('tr');
-            // 🔄 已調換「歷史總欠交」與「週期內欠交」的位置
             tr.innerHTML = `
                 <td>${st.id}</td>
                 <td>${st.name}</td>
